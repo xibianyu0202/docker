@@ -1,0 +1,195 @@
+https://hub.docker.com/search?q=centos&type=image
+
+docker的原始镜像
+FROM scratch
+ADD centos-7.4.1708-docker.tar.xz /
+LABEL name="CentOS Base Image" \
+    vendor="CentOS" \
+    license="GPLv2" \
+    build-date="20170911"
+CMD ["/bin/bash"]
+
+
+
+[root@docker ~]# vim /etc/yum.repos.d/dvd.repo
+[dsd]
+name=dsd
+baseurl=ftp://192.168.8.254/rhel7
+enabled=1
+gpgcheck=0
+
+[docker]
+name=docker
+baseurl=ftp://192.168.8.254/docker
+enabled=1
+gpgcheck=0
+
+
+[root@docker ~]# yum -y install docker-engine
+[root@docker ~]# systemctl restart docker
+[root@docker ~]# docker version	版本
+Client:
+ Version:      1.12.1
+ API version:  1.24
+ Go version:   go1.6.3
+ Git commit:   23cf638
+ Built:        
+ OS/Arch:      linux/amd64
+
+Server:
+ Version:      1.12.1
+ API version:  1.24
+ Go version:   go1.6.3
+ Git commit:   23cf638
+ Built:        
+ OS/Arch:      linux/amd64
+[root@docker ~]# docker search scratch
+						索所镜像
+[root@docker ~]# docker pull scratch
+Using default tag: latest
+Error response from daemon: 'scratch' is a reserved name
+					下载镜像它不让你下
+[root@docker ~]# docker pull busybox
+					下载成功
+[root@docker ~]# docker images
+					查看镜像
+[root@docker ~]# tar cf scratch.tar --files-from /dev/null
+					打空包
+[root@docker ~]# ll
+总用量 12
+-rw-r--r-- 1 root root 10240 4月  20 03:00 scratch.tar
+[root@docker ~]# tar -tvf scratch.tar
+[root@docker ~]# docker import scratch.tar scratch
+sha256:1d5f235934e4b8e2b07b2a6d5798b061a020624b1cd455db24cab8f60d6d3163
+
+[root@docker ~]# docker images
+scratch	0 B
+
+[root@docker ~]# docker rmi scratch
+Untagged: scratch:latest.................
+
+[root@docker ~]# docker images
+
+[root@docker ~]# tar -cv --files-from /dev/null | docker import - scratch
+sha256:8885f95c596998c7af855f86fd0a7cc8e41f1f4d662e0b3c60f3627d6bf4089a
+
+[root@docker ~]# docker images
+
+[root@docker ~]# mkdir vroot
+[root@docker ~]# yum -y install --installroot=/root/vroot/ bash yum coreutils
+[root@docker ~]# ls
+scratch.tar  vroot
+[root@docker ~]# cd vroot/
+[root@docker vroot]# ls
+bin   dev  home  lib64  mnt  proc  run   srv  tmp  var
+boot  etc  lib   media  opt  root  sbin  sys  usr
+[root@docker ~]# chroot /root/vroot/
+
+bash-4.2# ls -a /etc/skel/
+.  ..  .bash_logout  .bash_profile  .bashrc
+					设置root环境
+bash-4.2# cp -a /etc/skel/.[!.]* /root/
+bash-4.2# ls -al /root/
+
+[root@docker ~]# chroot /root/vroot/
+					重新进入vroot
+[root@docker /]# cd /etc/yum.repos.d/
+[root@docker yum.repos.d]# ls
+
+[root@docker ~]# cp /etc/yum.repos.d/dvd.repo   /root/vroot/etc/yum.repos.d/
+[root@docker ~]# vim /root/vroot/etc/yum.repos.d/dvd.repo
+
+[root@docker ~]# tar -cJf centos-7-docker.tar.xz -C vroot ./				打包
+[root@docker ~]# ls
+centos-7-docker.tar.xz  scratch.tar  vroot
+
+[root@docker ~]# mkdir ooxx
+[root@docker ~]# mv centos-7-docker.tar.xz  ooxx/
+[root@docker ~]# cd ooxx/
+[root@docker ooxx]# ls
+centos-7-docker.tar.xz
+[root@docker ooxx]# vim Dockerfile
+FROM scratchs
+ADD centos-7-docker.tar.xz /
+LABEL org.label-schema.schema-version="1.0" \
+      org.label-schema.name="CentOS Base Image" \
+      org.label-schema.vendor="CentOS" \
+      org.label-schema.license="GPLv2" \
+      org.label-schema.build-date="20181205"
+CMD ["/bin/bash"]
+[root@docker ooxx]# docker build -t centos:latest .
+[root@docker ~]# docker images
+[root@docker ooxx]# docker run -it centos
+					进入
+[root@06c39fd73fcd /]# yum -y install net-tools
+[root@06c39fd73fcd /]# ifconfig
+[root@06c39fd73fcd /]# yum -y install psmisc
+[root@06c39fd73fcd /]# pstree -p
+bash(1)---pstree(54)
+
+[root@docker ~]# docker save centos -o centos.tar
+				把它备份出来
+[root@docker ~]# docker images
+
+
+[root@docker ~]# man unshare
+
+[root@docker ~]# yum -y install bridge-utils
+				删包
+[root@docker ~]# ip link del link dev docker0
+[root@docker ~]# bridhe show
+
+[root@docker ~]# ip link add name docker0 type bridge stp_state 1
+[root@docker ~]# ip link set dev docker0 up
+				激活docker0IP
+ip	能封装ip赛格隧道
+ip	能做虚拟交换机
+ip	能直接封装vpn
+[root@docker ~]# ip link add lnic0 type veth peer name rnic0
+			创建一对虚拟网卡
+[root@docker ~]# ifconfig -a
+[root@docker ~]# mkdir -p /var/run/netns
+			创建命名空间
+[root@docker ~]# cd /var/run/netns/
+[root@docker netns]# echo $$
+808
+[root@docker netns]# ln -s /proc/808/ns/net /var/run/netns/808
+[root@docker netns]# ll
+[root@docker netns]# ip netns list
+808
+[root@docker netns]# ip link set rnic0 netns 808 name eth1
+[root@docker netns]# ifconfig -a eth1
+[root@docker netns]# ifconfig eth1 up
+[root@docker netns]# ifconfig
+[root@docker netns]# ip netns exec 808 ip addr add 172.17.0.2/16 brd 172.17.255.255 dev eth1
+[root@docker netns]# ifconfig
+[root@docker netns]# ip link set dev lnic0 master docker1
+[root@docker netns]# ip link set dev lnic0 up
+[root@docker netns]# sysctl -w net.ipv4.ip_forward=1
+[root@docker netns]# ifconfig
+
+
+[root@docker ~]# cd vroot/
+[root@docker vroot]# touch docker
+[root@docker ~]# unshare --uts --mount --pid --ipc --fork --mount-proc
+[root@docker ~]# mount --bind /proc /root/vroot/proc
+[root@docker ~]# hostname mydocker
+[root@docker ~]# /usr/sbin/chroot  /root/vroot/
+
+[root@mydocker /]# yum -y install psmisc vim net-tools
+[root@mydocker /]# pstree -p
+bash(1)───bash(31)───pstree(173)
+[root@mydocker /]# ifconfig
+[root@docker ~]# systemd-nspawn -M ooxx -D /root/vroot --network-bridge=docker1
+[root@ooxx ~]# ip link set host0 name eth0
+[root@ooxx ~]# ifconfig eth0 172.17.3/16
+[root@ooxx ~]# ip route replace default via 172.17.0.1
+[root@ooxx ~]# yum provides ping
+[root@ooxx ~]# yum -y install iputils
+
+
+
+
+
+
+
